@@ -1,0 +1,23 @@
+{
+  "name": "ateneaconocimientos-pw",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Atenea-Conocimientos/AteneaConocimientos-PW.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Atenea-Conocimientos/AteneaConocimientos-PW/issues"
+  },
+  "homepage": "https://github.com/Atenea-Conocimientos/AteneaConocimientos-PW#readme",
+  "description": "",
+  "devDependencies": {
+    "@playwright/test": "^1.56.0",
+    "@types/node": "^24.7.2",
+    "dotenv": "^17.2.3"
+  }
+}
