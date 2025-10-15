@@ -28,6 +28,4 @@ test('TC-3: Registro de estudiante (Sign up)', async ({ page }) => {
   await helpers.esperarPorRespuestaAPI('/api/students/register', 'POST', 201)
   await expect(page).toHaveURL(/.*dashboard.*/);
   await helpers.verificarTextoVisible("Hola, Juan Pérez")
-  // Espera adicional para observar el resultado antes de cerrar el navegador
-  await page.waitForTimeout(12000);
 });
