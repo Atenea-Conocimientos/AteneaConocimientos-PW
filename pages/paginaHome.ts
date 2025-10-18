@@ -1,4 +1,4 @@
-import {Locator, Page} from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 
 export class PaginaHome {
     readonly page: Page;
@@ -13,8 +13,8 @@ export class PaginaHome {
     async navegarAHome() {
         await this.page.goto(this.urlHome!);
     }
-    
+
     async navegarARegistro() {
         await this.botonCrearCuenta.click();
     }
-};
+}

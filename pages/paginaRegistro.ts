@@ -1,7 +1,7 @@
-import {Locator, Page } from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 
 export class PaginaRegistro {
-    readonly page:Page;
+    readonly page: Page;
     readonly inputNombre: Locator;
     readonly inputApellido: Locator;
     readonly inputEmail: Locator;
@@ -11,9 +11,9 @@ export class PaginaRegistro {
     readonly linkYaTengoCuenta: Locator;
     readonly checkboxTerminos: Locator;
     readonly linkTerminos: Locator;
-    readonly linkPoliticaPrivacidad: Locator
+    readonly linkPoliticaPrivacidad: Locator;
     readonly buttonShowPassword: Locator;
-    readonly buttonShowConfirmPassword: Locator
+    readonly buttonShowConfirmPassword: Locator;
 
     constructor(page: Page) {
         this.page = page;
@@ -25,16 +25,21 @@ export class PaginaRegistro {
         this.botonRegistrarse = page.getByRole('button', { name: 'Crear cuenta' });
         this.linkYaTengoCuenta = page.getByRole('link', { name: '¿Ya tienes cuenta? Inicia' });
         this.checkboxTerminos = page.getByRole('checkbox', { name: 'Acepto los Términos y' });
-        this.linkTerminos = page.getByRole('link', { name: 'Términos y Condiciones' })
-        this.linkPoliticaPrivacidad = page.getByRole('link', { name: 'Política de Privacidad', exact: true })
+        this.linkTerminos = page.getByRole('link', { name: 'Términos y Condiciones' });
+        this.linkPoliticaPrivacidad = page.getByRole('link', {
+            name: 'Política de Privacidad',
+            exact: true,
+        });
         this.buttonShowPassword = page.getByRole('button', { name: 'Mostrar contraseña' }).first();
-        this.buttonShowConfirmPassword = page.getByRole('button', { name: 'Mostrar contraseña' }).last();
+        this.buttonShowConfirmPassword = page
+            .getByRole('button', { name: 'Mostrar contraseña' })
+            .last();
     }
 
     async ingresarNombre(nombre: string) {
         await this.inputNombre.fill(nombre);
     }
-    
+
     async ingresarApellido(apellido: string) {
         await this.inputApellido.fill(apellido);
     }
@@ -42,11 +47,11 @@ export class PaginaRegistro {
     async ingresarEmail(email: string) {
         await this.inputEmail.fill(email);
     }
-    
+
     async ingresarPassword(password: string) {
         await this.inputPassword.fill(password);
     }
-    
+
     async ingresarConfirmPassword(confirmPassword: string) {
         await this.inputConfirmPassword.fill(confirmPassword);
     }
@@ -88,5 +93,4 @@ export class PaginaRegistro {
         await this.checkTerminos();
         await this.clickBotonRegistrarse();
     }
-
-};
+}

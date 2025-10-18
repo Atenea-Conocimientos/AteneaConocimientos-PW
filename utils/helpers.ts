@@ -1,8 +1,7 @@
 import { Locator, expect, Page } from '@playwright/test';
 
-
 export class Helpers {
-    readonly page: Page
+    readonly page: Page;
 
     constructor(page: Page) {
         this.page = page;
@@ -10,14 +9,16 @@ export class Helpers {
 
     //Verificar que el elemento buscado por texto esté visible en la página
     async verificarTextoVisible(texto: string) {
-        const elemento = this.page.getByText(texto)
+        const elemento = this.page.getByText(texto);
         await expect(elemento).toBeVisible();
     }
 
-    async esperarPorRespuestaAPI(url:string, metodo: string, status: number) {
-        await this.page.waitForResponse(response => response.url().includes(url) &&
-            response.request().method() === metodo &&
-            response.status() === status
+    async esperarPorRespuestaAPI(url: string, metodo: string, status: number) {
+        await this.page.waitForResponse(
+            (response) =>
+                response.url().includes(url) &&
+                response.request().method() === metodo &&
+                response.status() === status,
         );
     }
 }
