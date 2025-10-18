@@ -14,5 +14,8 @@
         "**/.playwright": true,
         "**/test-results": true,
         "**/playwright-report": true
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features"
     }
 }

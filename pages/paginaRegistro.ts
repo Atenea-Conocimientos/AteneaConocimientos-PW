@@ -14,6 +14,7 @@ export class PaginaRegistro {
     readonly linkPoliticaPrivacidad: Locator;
     readonly buttonShowPassword: Locator;
     readonly buttonShowConfirmPassword: Locator;
+    readonly buttonIrAIniciarSesion: Locator;
 
     constructor(page: Page) {
         this.page = page;
@@ -34,6 +35,7 @@ export class PaginaRegistro {
         this.buttonShowConfirmPassword = page
             .getByRole('button', { name: 'Mostrar contraseña' })
             .last();
+        this.buttonIrAIniciarSesion = page.getByRole('button', { name: 'Ir a iniciar sesión' });
     }
 
     async ingresarNombre(nombre: string) {
