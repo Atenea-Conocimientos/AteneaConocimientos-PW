@@ -10,7 +10,7 @@ let helpers: Helpers;
 
 dotenv.config();
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(({ page }) => {
     paginaHome = new PaginaHome(page);
     paginaRegistro = new PaginaRegistro(page);
     helpers = new Helpers(page);
