@@ -13,7 +13,9 @@ export class PaginaRegistro {
     readonly linkTerminos: Locator;
     readonly linkPoliticaPrivacidad: Locator
     readonly buttonShowPassword: Locator;
-    readonly buttonShowConfirmPassword: Locator
+    readonly buttonShowConfirmPassword: Locator;
+    readonly buttonModalIrIniciarSesion: Locator;
+    readonly buttonModalCerrar: Locator;    
 
     constructor(page: Page) {
         this.page = page;
@@ -29,6 +31,7 @@ export class PaginaRegistro {
         this.linkPoliticaPrivacidad = page.getByRole('link', { name: 'Política de Privacidad', exact: true })
         this.buttonShowPassword = page.getByRole('button', { name: 'Mostrar contraseña' }).first();
         this.buttonShowConfirmPassword = page.getByRole('button', { name: 'Mostrar contraseña' }).last();
+        this.buttonModalIrIniciarSesion = page.getByRole('button', { name: 'Ir a iniciar sesión' });        
     }
 
     async ingresarNombre(nombre: string) {
@@ -87,6 +90,10 @@ export class PaginaRegistro {
         await this.ingresarConfirmPassword(password);
         await this.checkTerminos();
         await this.clickBotonRegistrarse();
+    }
+    
+    async clickButtonModalIrIniciarSesion() {
+        await this.buttonModalIrIniciarSesion.click();
     }
 
 };
