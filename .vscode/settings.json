@@ -1,0 +1,21 @@
+{
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.codeActionsOnSave": {
+        "source.fixAll.eslint": "always"
+    },
+    "typescript.tsdk": "node_modules/typescript/lib",
+    "typescript.enablePromptUseWorkspaceTsdk": true,
+    "eslint.validate": ["typescript"],
+    "eslint.workingDirectories": [{ "mode": "auto" }],
+    "files.exclude": {
+        "**/node_modules": true,
+        "**/dist": true,
+        "**/.playwright": true,
+        "**/test-results": true,
+        "**/playwright-report": true
+    },
+    "[typescript]": {
+        "editor.defaultFormatter": "vscode.typescript-language-features"
+    }
+}
