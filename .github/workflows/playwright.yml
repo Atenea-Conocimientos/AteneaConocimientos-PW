@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TEST_ENV: qa
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -41,11 +42,41 @@ jobs:
       - name: Setup Pages
         if: ${{ github.event_name == 'push' && !cancelled() }}
         uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - name: Upload Pages artifact
         if: ${{ github.event_name == 'push' && !cancelled() }}
         uses: actions/upload-pages-artifact@v3
         with:
           path: playwright-report
+      - name: Notify Slack
+        if: ${{ always() && env.SLACK_WEBHOOK_URL != '' }}
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BRANCH: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          payload=$(jq -n \
+            --arg status "$JOB_STATUS" \
+            --arg repo "$REPO" \
+            --arg branch "$BRANCH" \
+            --arg actor "$ACTOR" \
+            --arg url "$RUN_URL" \
+            '{
+              text: "[Playwright] Estado: \($status)",
+              blocks: [
+                {
+                  type: "section",
+                  text: {
+                    type: "mrkdwn",
+                    text: "*Playwright CI \($status)*\nRepositorio: `\($repo)`\nRama: `\($branch)`\nDisparado por: `\($actor)`\n<\($url)|Ver ejecución en GitHub>"
+                  }
+                }
+              ]
+            }')
+          curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
 
   deploy:
     if: ${{ github.event_name == 'push' }}
