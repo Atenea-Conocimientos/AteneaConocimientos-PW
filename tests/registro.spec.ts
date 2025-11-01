@@ -27,3 +27,4 @@ test('TC-3: Registro de estudiante (Sign up)', async () => {
     await helpers.verificarTextoVisible('¡Tu cuenta está lista!');
     await expect(paginaRegistro.buttonIrAIniciarSesion).toBeVisible();
 });
+
