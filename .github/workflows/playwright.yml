@@ -43,7 +43,7 @@ jobs:
         with:
           node-version: "lts/*"
 
-      - name: Determinar URL objetivo
+      - name: Set QA_URL
         id: set-url
         run: |
           if [ -n "${{ github.event.client_payload.qa_url }}" ]; then
@@ -55,7 +55,7 @@ jobs:
           fi
 
       - name: Mostrar URL objetivo
-        run: echo "🏁 Ejecutando Playwright contra: $QA_URL"
+        run: echo "Ejecutando Playwright contra: ${{ env.QA_URL }}"
 
       - name: Install dependencies
         run: npm ci
@@ -133,4 +133,4 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: Mostrar URL objetivo
-        run: echo "Run Playwright against: $QA_URL"
+        run: echo "Run Playwright against: ${{ env.QA_URL }}"
