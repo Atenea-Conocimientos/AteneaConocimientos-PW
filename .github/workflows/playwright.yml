@@ -137,6 +137,5 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: Mostrar URL objetivo
-        run: echo "Run Playwright against: $QA_URL"
         env:
           QA_URL: ${{ env.QA_URL }}
