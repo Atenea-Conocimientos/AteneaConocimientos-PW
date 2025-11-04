@@ -58,6 +58,7 @@ Este repositorio contiene un framework de automatizacion de pruebas end-to-end c
 - `npm run lint` / `npm run lint:fix`: analiza el codigo y corrige problemas de estilo.
 - `npm run format` / `npm run format:check`: aplica o verifica formato Prettier.
 - `npm run typecheck`: valida tipos sin emitir JS.
+- `npm run trace:view`: abre `trace.zip` con Playwright Trace Viewer (artefacto descargado de CI).
 
 ## Como ejecutar las pruebas desde cero
 
@@ -93,9 +94,10 @@ El workflow `.github/workflows/playwright.yml` ejecuta:
 
 1. `npm ci` para instalar dependencias limpias.
 2. `npx playwright install chromium` para asegurar el navegador usado en CI.
-3. `npx playwright test` con `TEST_ENV=qa`.
-4. Subida del reporte y trazas como artefactos con retencion de 30 dias.
-5. Actualizacion del commit status `Playwright QA` en el repositorio origen para bloquear la fusion hasta que la ejecucion termine satisfactoriamente.
+3. Espera hasta 10 minutos a que el entorno QA (`QA_URL` y la API derivada) responda 200/3xx antes de lanzar los tests.
+4. `npx playwright test` contra el entorno recibido.
+5. Subida del reporte y trazas como artefactos con retencion de 30 dias.
+6. Actualizacion del commit status `Playwright QA` en el repositorio origen para bloquear la fusion hasta que la ejecucion termine satisfactoriamente.
 
 ## Ejecuciones manuales o contra entornos efimeros
 
