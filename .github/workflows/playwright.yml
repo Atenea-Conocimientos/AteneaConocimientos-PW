@@ -25,7 +25,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: playwright-${{ github.workflow }}-${{ github.ref || github.event.client_payload.qa_url || github.run_id }}
+  group: playwright-${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -34,8 +34,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       TEST_ENV: qa
-      QA_URL: ${{ github.event.client_payload.qa_url || github.event.inputs.qa_url || vars.DEFAULT_QA_URL || 'https://qa.ateneaconocimientos.com' }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+
     steps:
       - uses: actions/checkout@v4
 
@@ -43,8 +43,19 @@ jobs:
         with:
           node-version: "lts/*"
 
+      - name: Determinar URL objetivo
+        id: set-url
+        run: |
+          if [ -n "${{ github.event.client_payload.qa_url }}" ]; then
+            echo "QA_URL=${{ github.event.client_payload.qa_url }}" >> $GITHUB_ENV
+          elif [ -n "${{ github.event.inputs.qa_url }}" ]; then
+            echo "QA_URL=${{ github.event.inputs.qa_url }}" >> $GITHUB_ENV
+          else
+            echo "QA_URL=https://qa.ateneaconocimientos.com" >> $GITHUB_ENV
+          fi
+
       - name: Mostrar URL objetivo
-        run: echo "Run Playwright against: $QA_URL"
+        run: echo "🏁 Ejecutando Playwright contra: $QA_URL"
 
       - name: Install dependencies
         run: npm ci
@@ -120,3 +131,6 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Mostrar URL objetivo
+        run: echo "Run Playwright against: $QA_URL"
