@@ -18,8 +18,13 @@ if (envFile) {
     dotenv.config({ path: envFile });
 }
 
-const baseURL = process.env.BASE_URL ?? 'http://localhost:3000';
+const baseURL =
+    process.env.PLAYWRIGHT_TEST_BASE_URL ??
+    process.env.BASE_URL ??
+    'https://qa.ateneaconocimientos.com';
 const isCI = !!process.env.CI;
+const screenshotMode = isCI ? 'only-on-failure' : 'on';
+const videoMode = isCI ? 'retain-on-failure' : 'off';
 
 const baseProjects = [
     {
@@ -56,8 +61,8 @@ export default defineConfig({
     use: {
         /* Base URL to use in actions like `await page.goto('')`. */
         baseURL,
-        screenshot: 'only-on-failure',
-        video: 'retain-on-failure',
+        screenshot: screenshotMode,
+        video: videoMode,
 
         /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
         trace: 'on',

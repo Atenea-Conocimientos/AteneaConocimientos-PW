@@ -35,9 +35,37 @@ jobs:
     env:
       TEST_ENV: qa
       QA_URL: ${{ github.event.client_payload.qa_url || github.event.inputs.qa_url || vars.DEFAULT_QA_URL || 'https://qa.ateneaconocimientos.com' }}
+      COMMIT_SHA: ${{ github.event.client_payload.commit_sha || github.event.client_payload.sha || github.sha }}
+      SOURCE_REPO: ${{ github.event.client_payload.source_repo || github.repository }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set pending commit status
+        if: ${{ env.COMMIT_SHA != '' && secrets.STATUS_PAT != '' }}
+        env:
+          STATUS_PAT: ${{ secrets.STATUS_PAT }}
+          COMMIT_SHA: ${{ env.COMMIT_SHA }}
+          SOURCE_REPO: ${{ env.SOURCE_REPO }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          payload=$(cat <<'JSON'
+{
+  "state": "pending",
+  "context": "Playwright QA",
+  "description": "Playwright tests running",
+  "target_url": "RUN_URL_PLACEHOLDER"
+}
+JSON
+)
+          payload=${payload/RUN_URL_PLACEHOLDER/"$RUN_URL"}
+          curl --fail-with-body \
+            -X POST \
+            -H "Authorization: Bearer $STATUS_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            --data "$payload" \
+            "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA"
 
       - uses: actions/setup-node@v4
         with:
@@ -54,12 +82,34 @@ jobs:
           PLAYWRIGHT_TEST_BASE_URL: ${{ env.QA_URL }}
         run: npx playwright test --project=chromium
 
+      - name: Package Playwright traces
+        if: ${{ always() }}
+        run: |
+          mkdir -p artifacts
+          mapfile -t traces < <(find playwright-report -type f -name "*trace.zip" || true)
+          if [ "${#traces[@]}" -gt 0 ]; then
+            zip -j artifacts/trace.zip "${traces[@]}"
+          else
+            echo "No trace files generated." > artifacts/trace-info.txt
+            zip -j artifacts/trace.zip artifacts/trace-info.txt
+          fi
+
       - uses: actions/upload-artifact@v4
-        if: ${{ !cancelled() }}
+        if: ${{ always() }}
         with:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
+          if-no-files-found: warn
+
+      - name: Upload trace artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-trace
+          path: artifacts/trace.zip
+          retention-days: 30
+          if-no-files-found: warn
 
       - name: Setup Pages
         if: ${{ github.event_name == 'push' && !cancelled() }}
@@ -105,6 +155,55 @@ jobs:
               ]
             }')
           curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
+
+      - name: Finalize commit status
+        if: ${{ always() && env.COMMIT_SHA != '' && secrets.STATUS_PAT != '' }}
+        env:
+          STATUS_PAT: ${{ secrets.STATUS_PAT }}
+          COMMIT_SHA: ${{ env.COMMIT_SHA }}
+          SOURCE_REPO: ${{ env.SOURCE_REPO }}
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          EVENT_NAME: ${{ github.event_name }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          if [ "$JOB_STATUS" = "success" ]; then
+            state="success"
+            description="Playwright tests passed"
+            if [ "$EVENT_NAME" = "push" ]; then
+              target_url="${PAGES_URL:-$RUN_URL}"
+            else
+              target_url="$RUN_URL"
+            fi
+          elif [ "$JOB_STATUS" = "cancelled" ]; then
+            state="failure"
+            description="Playwright tests cancelled"
+            target_url="$RUN_URL"
+          else
+            state="failure"
+            description="Playwright tests failed"
+            target_url="$RUN_URL"
+          fi
+
+          payload=$(jq -n \
+            --arg state "$state" \
+            --arg context "Playwright QA" \
+            --arg description "$description" \
+            --arg target_url "$target_url" \
+            '{
+              state: $state,
+              context: $context,
+              description: $description,
+              target_url: $target_url
+            }')
+
+          curl --fail-with-body \
+            -X POST \
+            -H "Authorization: Bearer $STATUS_PAT" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/json" \
+            --data "$payload" \
+            "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA"
 
   deploy:
     if: ${{ github.event_name == 'push' }}
