@@ -7,13 +7,17 @@ on:
   workflow_dispatch:
     inputs:
       qa_url:
-        description: URL (QA/preview) contra la que correr las pruebas
+        description: URL contra la que correr las pruebas
         required: false
         default: https://qa.ateneaconocimientos.com
   push:
-    branches: [main, master]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [main, master]
+    branches:
+      - main
+      - master
 
 permissions:
   contents: read
