@@ -37,9 +37,11 @@ jobs:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
 
@@ -55,6 +57,7 @@ jobs:
           fi
 
       - name: Mostrar URL objetivo
+        run: echo "Ejecutando Playwright contra: $QA_URL"
         env:
           QA_URL: ${{ env.QA_URL }}
 
@@ -69,14 +72,15 @@ jobs:
           PLAYWRIGHT_TEST_BASE_URL: ${{ env.QA_URL }}
         run: npx playwright test --project=chromium
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload test report
         if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
         with:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
 
-      - name: Setup Pages
+      - name: Setup GitHub Pages
         if: ${{ github.event_name == 'push' && !cancelled() }}
         uses: actions/configure-pages@v5
         with:
@@ -134,5 +138,6 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - name: Mostrar URL objetivo
+        run: echo "Run Playwright against: $QA_URL"
         env:
           QA_URL: ${{ env.QA_URL }}
