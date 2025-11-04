@@ -57,7 +57,6 @@ jobs:
           fi
 
       - name: Mostrar URL objetivo
-        run: echo "Ejecutando Playwright contra: $QA_URL"
         env:
           QA_URL: ${{ env.QA_URL }}
 
