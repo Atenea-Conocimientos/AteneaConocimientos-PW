@@ -54,6 +54,7 @@ Este repositorio contiene un framework de automatizacion de pruebas end-to-end c
 - `npm run test:headed`: abre los navegadores en modo visible.
 - `npm run test:ci`: usa el reporter en linea pensado para integracion continua.
 - `npm run report:open`: abre el ultimo reporte HTML generado.
+- `npm run trace:view`: abre en el Trace Viewer un archivo `trace.zip` descargado desde GitHub Actions.
 - `npm run lint` / `npm run lint:fix`: analiza el codigo y corrige problemas de estilo.
 - `npm run format` / `npm run format:check`: aplica o verifica formato Prettier.
 - `npm run typecheck`: valida tipos sin emitir JS.
@@ -84,16 +85,40 @@ Este repositorio contiene un framework de automatizacion de pruebas end-to-end c
 
 - Playwright genera un reporte HTML en `playwright-report/`; se sobreescribe en cada ejecucion.
 - Los videos, capturas y trazas se guardan en `test-results/` cuando hay fallos o reintentos.
-- En GitHub Actions, el reporte se adjunta como artefacto descargable (`playwright-report.zip`).
+- En GitHub Actions, siempre se publican dos artefactos: `playwright-report` (HTML navegable) y `playwright-trace/trace.zip` que contiene las trazas (`.zip`) de la corrida. Descarga `trace.zip` y abrelo localmente con `npm run trace:view`.
 
 ## Integracion continua
 
 El workflow `.github/workflows/playwright.yml` ejecuta:
 
 1. `npm ci` para instalar dependencias limpias.
-2. `npx playwright install --with-deps` para asegurar navegadores.
+2. `npx playwright install chromium` para asegurar el navegador usado en CI.
 3. `npx playwright test` con `TEST_ENV=qa`.
-4. Subida del reporte como artefacto con retencion de 30 dias.
+4. Subida del reporte y trazas como artefactos con retencion de 30 dias.
+5. Actualizacion del commit status `Playwright QA` en el repositorio origen para bloquear la fusion hasta que la ejecucion termine satisfactoriamente.
+
+## Ejecuciones manuales o contra entornos efimeros
+
+- **workflow_dispatch**: desde la pestaña _Actions_ selecciona _Playwright Tests_ y pulsa en _Run workflow_. El parametro opcional `qa_url` permite apuntar la corrida a cualquier entorno (por ejemplo, uno efimero). Si lo dejas vacio se usara `vars.DEFAULT_QA_URL` o `https://qa.ateneaconocimientos.com`.
+- **repository_dispatch**: el repositorio A puede lanzar las pruebas enviando un POST al endpoint `repos/:owner/:repo/dispatches` con `event_type: trigger-playwright-tests` y un payload como:
+
+    ```json
+    {
+        "event_type": "trigger-playwright-tests",
+        "client_payload": {
+            "qa_url": "https://mi-entorno-efimero.example",
+            "commit_sha": "abc123",
+            "source_repo": "Atenea-Conocimientos/repo-a"
+        }
+    }
+    ```
+
+En ambos casos, la ejecucion devuelve:
+
+- Un commit status `Playwright QA` sobre `commit_sha` (o `github.sha` por defecto), con estado `pending` al iniciar y `success`/`failure`/`failure (cancelled)` segun el resultado. El `target_url` apunta al reporte en GitHub Pages cuando existe y, en su defecto, al run de GitHub Actions.
+- Artefactos descargables: `playwright-report` (HTML) y `playwright-trace/trace.zip`.
+- Notificacion en Slack (si `SLACK_WEBHOOK_URL` esta configurado) con enlaces al run y al reporte.
+- El workflow requiere el secret `STATUS_PAT` (token con alcance `repo` sobre el repositorio A) para poder actualizar los commit status externos.
 
 ## Recursos adicionales
 

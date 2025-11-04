@@ -34,6 +34,7 @@
         "test:headed": "playwright test --headed",
         "test:ci": "playwright test --reporter=line",
         "report:open": "playwright show-report",
+        "trace:view": "npx playwright show-trace trace.zip",
         "typecheck": "tsc --noEmit",
         "lint": "eslint . --ext .ts",
         "lint:fix": "npm run lint -- --fix",
