@@ -35,10 +35,6 @@ jobs:
     env:
       TEST_ENV: qa
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-    
-    # --- CAMBIO 1: Añadir outputs al job ---
-    outputs:
-      target_url: ${{ steps.set-url.outputs.qa_url }}
 
     steps:
       - uses: actions/checkout@v4
@@ -47,26 +43,21 @@ jobs:
         with:
           node-version: "lts/*"
 
-      # --- CAMBIO 2: Añadir 'id' y 'GITHUB_OUTPUT' ---
       - name: Set QA_URL
         id: set-url
         run: |
-          URL_VALUE=""
           if [ -n "${{ github.event.client_payload.qa_url }}" ]; then
-            URL_VALUE="${{ github.event.client_payload.qa_url }}"
+            echo "QA_URL=${{ github.event.client_payload.qa_url }}" >> $GITHUB_ENV
           elif [ -n "${{ github.event.inputs.qa_url }}" ]; then
-            URL_VALUE="${{ github.event.inputs.qa_url }}"
+            echo "QA_URL=${{ github.event.inputs.qa_url }}" >> $GITHUB_ENV
           else
-            URL_VALUE="https://qa.ateneaconocimientos.com"
+            echo "QA_URL=https://qa.ateneaconocimientos.com" >> $GITHUB_ENV
           fi
-          echo "QA_URL=$URL_VALUE" >> $GITHUB_ENV
-          echo "qa_url=$URL_VALUE" >> $GITHUB_OUTPUT
 
-      # --- CAMBIO 3: Corregir el error de sintaxis ---
       - name: Mostrar URL objetivo
         run: echo "Ejecutando Playwright contra: $QA_URL"
-      
-      # (El 'env:' de aquí abajo fue eliminado)
+        env:
+          QA_URL: ${{ env.QA_URL }}
 
       - name: Install dependencies
         run: npm ci
@@ -143,6 +134,6 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
 
-      # --- CAMBIO 4: Usar 'needs' para obtener el output del job anterior ---
       - name: Mostrar URL objetivo
-        run: echo "Run Playwright against: ${{ needs.test.outputs.target_url }}"
+        env:
+          QA_URL: ${{ env.QA_URL }}
