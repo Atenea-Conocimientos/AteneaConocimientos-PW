@@ -38,27 +38,26 @@ jobs:
       COMMIT_SHA: ${{ github.event.client_payload.commit_sha || github.event.client_payload.sha || github.sha }}
       SOURCE_REPO: ${{ github.event.client_payload.source_repo || github.repository }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      STATUS_PAT: ${{ secrets.STATUS_PAT }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Set pending commit status
-        if: ${{ env.COMMIT_SHA != '' && secrets.STATUS_PAT != '' }}
+        if: ${{ env.COMMIT_SHA != '' && env.STATUS_PAT != '' }}
         env:
-          STATUS_PAT: ${{ secrets.STATUS_PAT }}
           COMMIT_SHA: ${{ env.COMMIT_SHA }}
           SOURCE_REPO: ${{ env.SOURCE_REPO }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          STATUS_PAT: ${{ env.STATUS_PAT }}
         run: |
-          payload=$(cat <<'JSON'
-{
-  "state": "pending",
-  "context": "Playwright QA",
-  "description": "Playwright tests running",
-  "target_url": "RUN_URL_PLACEHOLDER"
-}
-JSON
-)
-          payload=${payload/RUN_URL_PLACEHOLDER/"$RUN_URL"}
+          payload=$(jq -n \
+            --arg url "$RUN_URL" \
+            '{
+              state: "pending",
+              context: "Playwright QA",
+              description: "Playwright tests running",
+              target_url: $url
+            }')
           curl --fail-with-body \
             -X POST \
             -H "Authorization: Bearer $STATUS_PAT" \
@@ -157,15 +156,15 @@ JSON
           curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
 
       - name: Finalize commit status
-        if: ${{ always() && env.COMMIT_SHA != '' && secrets.STATUS_PAT != '' }}
+        if: ${{ always() && env.COMMIT_SHA != '' && env.STATUS_PAT != '' }}
         env:
-          STATUS_PAT: ${{ secrets.STATUS_PAT }}
           COMMIT_SHA: ${{ env.COMMIT_SHA }}
           SOURCE_REPO: ${{ env.SOURCE_REPO }}
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           EVENT_NAME: ${{ github.event_name }}
           PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          STATUS_PAT: ${{ env.STATUS_PAT }}
         run: |
           if [ "$JOB_STATUS" = "success" ]; then
             state="success"

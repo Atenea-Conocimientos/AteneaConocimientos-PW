@@ -99,17 +99,17 @@ El workflow `.github/workflows/playwright.yml` ejecuta:
 
 ## Ejecuciones manuales o contra entornos efimeros
 
-- **workflow_dispatch**: desde la pestaña *Actions* selecciona _Playwright Tests_ y pulsa en *Run workflow*. El parametro opcional `qa_url` permite apuntar la corrida a cualquier entorno (por ejemplo, uno efimero). Si lo dejas vacio se usara `vars.DEFAULT_QA_URL` o `https://qa.ateneaconocimientos.com`.
+- **workflow_dispatch**: desde la pestaña _Actions_ selecciona _Playwright Tests_ y pulsa en _Run workflow_. El parametro opcional `qa_url` permite apuntar la corrida a cualquier entorno (por ejemplo, uno efimero). Si lo dejas vacio se usara `vars.DEFAULT_QA_URL` o `https://qa.ateneaconocimientos.com`.
 - **repository_dispatch**: el repositorio A puede lanzar las pruebas enviando un POST al endpoint `repos/:owner/:repo/dispatches` con `event_type: trigger-playwright-tests` y un payload como:
 
     ```json
     {
-      "event_type": "trigger-playwright-tests",
-      "client_payload": {
-        "qa_url": "https://mi-entorno-efimero.example",
-        "commit_sha": "abc123",
-        "source_repo": "Atenea-Conocimientos/repo-a"
-      }
+        "event_type": "trigger-playwright-tests",
+        "client_payload": {
+            "qa_url": "https://mi-entorno-efimero.example",
+            "commit_sha": "abc123",
+            "source_repo": "Atenea-Conocimientos/repo-a"
+        }
     }
     ```
 
