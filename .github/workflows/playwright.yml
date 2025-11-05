@@ -219,19 +219,37 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           ACTOR: ${{ github.actor }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+          TOKEN: ${{ github.token }}
+          RUN_NUMBER: ${{ github.run_number }}
+          SHORT_SHA: ${{ github.sha }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          set -euo pipefail
+
+          # Limpiar el nombre de la branch (por si tiene /)
+          safe_branch=$(echo "${BRANCH}" | tr -cd '[:alnum:]-_' | tr '/' '-')
+          folder_name="run-${RUN_NUMBER}-${safe_branch}-$(echo ${SHORT_SHA} | cut -c1-7)"
+
+          base_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          report_url="${base_url}/${folder_name}/"
+          latest_url="${base_url}/latest/"
+
           payload=$(jq -n \
             --arg status "$JOB_STATUS" \
             --arg repo "$REPO" \
             --arg branch "$BRANCH" \
             --arg actor "$ACTOR" \
-            --arg url "$RUN_URL" \
-            --arg pages "$PAGES_URL" \
+            --arg runurl "$RUN_URL" \
+            --arg report "$report_url" \
+            --arg latest "$latest_url" \
             '{
               text: "[Playwright] Estado: \($status)",
               blocks: [
-                { type: "section", text: { type: "mrkdwn", text: "*Playwright CI \($status)*\nRepo: `\($repo)`\nBranch: `\($branch)`\nBy: `\($actor)`\n<\($url)|Ver ejecución>\n<\($pages)|Ver reportes>" } }
+                { type: "section",
+                  text: { type: "mrkdwn",
+                    text: "*Playwright CI \($status)*\nRepositorio: `\($repo)`\nRama: `\($branch)`\nDisparado por: `\($actor)`\n<\($runurl)|Ver ejecución en GitHub>\n<\($report)|Ver reporte actual>\n<\($latest)|Ver el último reporte>" }
+                }
               ]
             }')
+
           curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
