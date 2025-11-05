@@ -136,22 +136,6 @@ jobs:
             zip -j "$trace_bundle" artifacts/trace-info.txt
           fi
 
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-          if-no-files-found: warn
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: playwright-trace
-          path: artifacts/trace.zip
-          retention-days: 30
-          if-no-files-found: warn
-
       - name: Prepare and commit Playwright report history
         if: always()
         env:
@@ -169,18 +153,16 @@ jobs:
           git clone --depth 1 --branch gh-pages "https://x-access-token:${TOKEN}@github.com/${REPO}.git" gh-pages || mkdir gh-pages
           cd gh-pages
 
-          # Crear carpeta única para el run
           safe_branch=$(echo "${BRANCH}" | tr -cd '[:alnum:]-_' | tr '/' '-')
-          folder_name="run-${RUN_NUMBER}-${safe_branch}-$(echo ${SHORT_SHA} | cut -c1-7)"
+          timestamp=$(date -u +'%Y%m%d-%H%M%S')
+          folder_name="run-${RUN_NUMBER}-${safe_branch}-${timestamp}-$(echo ${SHORT_SHA} | cut -c1-7)"
           mkdir -p "$folder_name"
           cp -R ../playwright-report/* "$folder_name/"
           echo "✅ Reporte copiado en carpeta $folder_name"
 
-          # Actualizar symlink 'latest'
           rm -rf latest
           cp -R "$folder_name" latest
 
-          # Mantener solo los últimos 20 runs
           runs=( $(ls -td run-* 2>/dev/null || true) )
           if [ ${#runs[@]} -gt 20 ]; then
             echo "🧹 Limpiando runs antiguos..."
@@ -190,7 +172,6 @@ jobs:
             done
           fi
 
-          # Regenerar index.html
           echo "🪄 Actualizando índice..."
           {
             echo '<!DOCTYPE html>'
@@ -206,10 +187,16 @@ jobs:
             echo '</ul></body></html>'
           } > index.html
 
-          echo "📤 Commit & push..."
           git add .
           git commit -m "📊 Add Playwright report $folder_name" || echo "No hay cambios para commitear."
           git push origin gh-pages
+
+      - name: Deploy to GitHub Pages
+        if: always()
+        id: deployment
+        uses: actions/deploy-pages@v4
+        with:
+          token: ${{ github.token }}
 
       - name: Notify Slack
         if: always() && env.SLACK_WEBHOOK_URL != ''
@@ -219,17 +206,12 @@ jobs:
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           ACTOR: ${{ github.actor }}
-          TOKEN: ${{ github.token }}
-          RUN_NUMBER: ${{ github.run_number }}
-          SHORT_SHA: ${{ github.sha }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           set -euo pipefail
-
-          # Limpiar el nombre de la branch (por si tiene /)
           safe_branch=$(echo "${BRANCH}" | tr -cd '[:alnum:]-_' | tr '/' '-')
-          folder_name="run-${RUN_NUMBER}-${safe_branch}-$(echo ${SHORT_SHA} | cut -c1-7)"
-
+          timestamp=$(date -u +'%Y%m%d-%H%M%S')
+          folder_name="run-${{ github.run_number }}-${safe_branch}-${timestamp}-$(echo ${{ github.sha }} | cut -c1-7)"
           base_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
           report_url="${base_url}/${folder_name}/"
           latest_url="${base_url}/latest/"
@@ -247,9 +229,8 @@ jobs:
               blocks: [
                 { type: "section",
                   text: { type: "mrkdwn",
-                    text: "*Playwright CI \($status)*\nRepositorio: `\($repo)`\nRama: `\($branch)`\nDisparado por: `\($actor)`\n<\($runurl)|Ver ejecución en GitHub>\n<\($report)|Ver reporte actual>\n<\($latest)|Ver el último reporte>" }
+                    text: "*Playwright CI \($status)*\nRepositorio: `\($repo)`\nRama: `\($branch)`\nDisparado por: `\($actor)`\n<\($runurl)|Ver ejecución>\n<\($report)|Ver reporte actual>\n<\($latest)|Ver el último reporte>" }
                 }
               ]
             }')
-
           curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
