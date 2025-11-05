@@ -113,9 +113,6 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install chromium
 
-      - name: Show target URL
-        run: echo "🏁 Ejecutando Playwright contra: $QA_URL"
-
       - name: Run Playwright tests
         env:
           BASE_URL: ${{ env.QA_URL }}
