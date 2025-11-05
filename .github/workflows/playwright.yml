@@ -119,6 +119,16 @@ jobs:
           PLAYWRIGHT_TEST_BASE_URL: ${{ env.QA_URL }}
         run: npx playwright test --project=chromium
 
+      - name: Debug Playwright report
+        if: always()
+        run: |
+          echo "📂 Revisando carpeta playwright-report..."
+          if [ -d playwright-report ]; then
+            ls -la playwright-report
+          else
+            echo "⚠️ playwright-report no existe."
+          fi
+
       - name: Package Playwright traces
         if: always()
         run: |
@@ -157,7 +167,27 @@ jobs:
           timestamp=$(date -u +'%Y%m%d-%H%M%S')
           folder_name="run-${RUN_NUMBER}-${safe_branch}-${timestamp}-$(echo ${SHORT_SHA} | cut -c1-7)"
           mkdir -p "$folder_name"
-          cp -R ../playwright-report/* "$folder_name/"
+          if [ -d ../playwright-report ]; then
+            report_dir="../playwright-report"
+          elif [ -d playwright-report ]; then
+            report_dir="playwright-report"
+          else
+            echo "❌ No se encontró carpeta playwright-report."
+            echo "Contenido del directorio actual:"
+            ls -la
+            echo "Contenido del directorio padre:"
+            ls -la ..
+            exit 1
+          fi
+
+          if [ ! -d "$report_dir" ]; then
+            echo "❌ Directorio de reportes no accesible en $report_dir"
+            exit 1
+          fi
+
+          echo "📦 Copiando reporte desde $report_dir"
+          ls -la "$report_dir"
+          cp -R "$report_dir"/. "$folder_name"/
           echo "✅ Reporte copiado en carpeta $folder_name"
 
           rm -rf latest
