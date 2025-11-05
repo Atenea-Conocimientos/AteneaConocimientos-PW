@@ -166,17 +166,91 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+      - name: Download previous Pages reports
+        if: ${{ always() }}
+        env:
+          REPO: ${{ github.repository }}
+          TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if git ls-remote --exit-code origin gh-pages > /dev/null 2>&1; then
+            git clone --depth 1 --branch gh-pages "https://x-access-token:${TOKEN}@github.com/${REPO}.git" pages-existing
+          else
+            echo "No existe gh-pages aún; se creará con el primer deploy."
+          fi
+
+      - name: Prepare Pages content
+        if: ${{ always() }}
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          rm -rf pages-build
+          mkdir -p pages-build
+          run_dir=$(printf "run-%06d-attempt-%02d" "${RUN_NUMBER}" "${RUN_ATTEMPT}")
+          dest="pages-build/${run_dir}"
+          cp -R playwright-report "${dest}"
+
+          if [ -d pages-existing ]; then
+            mapfile -t existing_runs < <(find pages-existing -maxdepth 1 -mindepth 1 -type d -name 'run-*' | sort -r)
+            kept=0
+            for dir in "${existing_runs[@]}"; do
+              if [ $kept -ge 19 ]; then
+                break
+              fi
+              name=$(basename "$dir")
+              cp -R "$dir" "pages-build/$name"
+              kept=$((kept+1))
+            done
+          fi
+
+          rm -rf pages-build/latest
+          cp -R "$dest" pages-build/latest
+
+          mapfile -t run_dirs < <(find pages-build -maxdepth 1 -mindepth 1 -type d -name 'run-*' | sort -r)
+          cat <<'HTML' > pages-build/index.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <title>Playwright Reports</title>
+  <style>
+    body { font-family: sans-serif; margin: 2rem; }
+    h1 { margin-bottom: 0.5rem; }
+    ul { list-style: none; padding: 0; }
+    li { margin: 0.5rem 0; }
+    a { text-decoration: none; color: #0366d6; }
+    a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <h1>Historial de reportes Playwright</h1>
+  <p>Se conservan los últimos 20 reportes. Usa <code>latest/</code> para el más reciente.</p>
+  <ul>
+HTML
+          for dir in "${run_dirs[@]}"; do
+            name=$(basename "$dir")
+            printf '    <li><a href="%s/index.html">%s</a></li>\n' "$name" "$name" >> pages-build/index.html
+          done
+          cat <<'HTML' >> pages-build/index.html
+    <li><a href="latest/index.html">latest</a></li>
+  </ul>
+</body>
+</html>
+HTML
+
       - name: Setup Pages
-        if: ${{ always() && github.event_name == 'push' && !cancelled() }}
+        if: ${{ always() && !cancelled() }}
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
       - name: Upload Pages artifact
-        if: ${{ always() && github.event_name == 'push' && !cancelled() }}
+        if: ${{ always() && !cancelled() }}
         uses: actions/upload-pages-artifact@v3
         with:
-          path: playwright-report
+          path: pages-build
 
       - name: Notify Slack
         if: ${{ always() && env.SLACK_WEBHOOK_URL != '' }}
@@ -268,7 +342,7 @@ jobs:
           rm -f "$response_file"
 
   deploy:
-    if: ${{ github.event_name == 'push' }}
+    if: ${{ always() && needs.test.result != 'cancelled' }}
     needs: test
     runs-on: ubuntu-latest
     environment:

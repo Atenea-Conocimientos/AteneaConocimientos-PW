@@ -87,6 +87,7 @@ Este repositorio contiene un framework de automatizacion de pruebas end-to-end c
 - Playwright genera un reporte HTML en `playwright-report/`; se sobreescribe en cada ejecucion.
 - Los videos, capturas y trazas se guardan en `test-results/` cuando hay fallos o reintentos.
 - En GitHub Actions, siempre se publican dos artefactos: `playwright-report` (HTML navegable) y `playwright-trace/trace.zip` que contiene las trazas (`.zip`) de la corrida. Descarga `trace.zip` y abrelo localmente con `npm run trace:view`.
+- GitHub Pages conserva automaticamente los ultimos 20 reportes en directorios `run-<numero>-attempt-<n>/`. El enlace `https://atenea-conocimientos.github.io/AteneaConocimientos-PW/latest/` apunta siempre al reporte mas reciente y la pagina principal lista el historial completo.
 
 ## Integracion continua
 
@@ -97,7 +98,8 @@ El workflow `.github/workflows/playwright.yml` ejecuta:
 3. Espera hasta 10 minutos a que el entorno QA (`QA_URL` y la API derivada) responda 200/3xx antes de lanzar los tests.
 4. `npx playwright test` contra el entorno recibido.
 5. Subida del reporte y trazas como artefactos con retencion de 30 dias.
-6. Actualizacion del commit status `Playwright QA` en el repositorio origen para bloquear la fusion hasta que la ejecucion termine satisfactoriamente.
+6. Publicacion en GitHub Pages conservando los ultimos 20 historicos (`run-xxxxx-attempt-yy/` + alias `latest/`) sin importar el evento que dispare la ejecucion.
+7. Actualizacion del commit status `Playwright QA` en el repositorio origen para bloquear la fusion hasta que la ejecucion termine satisfactoriamente.
 
 ## Ejecuciones manuales o contra entornos efimeros
 
