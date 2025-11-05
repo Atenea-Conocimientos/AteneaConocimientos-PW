@@ -170,7 +170,8 @@ jobs:
           cd gh-pages
 
           # Crear carpeta única para el run
-          folder_name="run-${RUN_NUMBER}-${BRANCH}-$(echo ${SHORT_SHA} | cut -c1-7)"
+          safe_branch=$(echo "${BRANCH}" | tr -cd '[:alnum:]-_' | tr '/' '-')
+          folder_name="run-${RUN_NUMBER}-${safe_branch}-$(echo ${SHORT_SHA} | cut -c1-7)"
           mkdir -p "$folder_name"
           cp -R ../playwright-report/* "$folder_name/"
           echo "✅ Reporte copiado en carpeta $folder_name"
