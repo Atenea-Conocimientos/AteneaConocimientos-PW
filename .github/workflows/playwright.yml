@@ -118,8 +118,14 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install chromium
 
+      - name: Print base URL
+        env:
+          QA_URL: ${{ env.QA_URL }}
+        run: echo "Playwright QA URL: ${QA_URL}"
+
       - name: Run Playwright tests
         env:
+          BASE_URL: ${{ env.QA_URL }}
           PLAYWRIGHT_TEST_BASE_URL: ${{ env.QA_URL }}
         run: npx playwright test --project=chromium
 

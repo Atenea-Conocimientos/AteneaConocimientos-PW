@@ -19,8 +19,8 @@ if (envFile) {
 }
 
 const baseURL =
-    process.env.PLAYWRIGHT_TEST_BASE_URL ??
-    process.env.BASE_URL ??
+    process.env.PLAYWRIGHT_TEST_BASE_URL ||
+    process.env.BASE_URL ||
     'https://qa.ateneaconocimientos.com';
 const isCI = !!process.env.CI;
 const screenshotMode = isCI ? 'only-on-failure' : 'on';
