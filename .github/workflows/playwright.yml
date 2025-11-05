@@ -191,12 +191,7 @@ jobs:
           git commit -m "📊 Add Playwright report $folder_name" || echo "No hay cambios para commitear."
           git push origin gh-pages
 
-      - name: Deploy to GitHub Pages
-        if: always()
-        id: deployment
-        uses: actions/deploy-pages@v4
-        with:
-          token: ${{ github.token }}
+          echo "$folder_name" > ../folder_name.txt
 
       - name: Notify Slack
         if: always() && env.SLACK_WEBHOOK_URL != ''
@@ -209,9 +204,7 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
           set -euo pipefail
-          safe_branch=$(echo "${BRANCH}" | tr -cd '[:alnum:]-_' | tr '/' '-')
-          timestamp=$(date -u +'%Y%m%d-%H%M%S')
-          folder_name="run-${{ github.run_number }}-${safe_branch}-${timestamp}-$(echo ${{ github.sha }} | cut -c1-7)"
+          folder_name=$(cat folder_name.txt)
           base_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
           report_url="${base_url}/${folder_name}/"
           latest_url="${base_url}/latest/"
