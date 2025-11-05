@@ -20,7 +20,7 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
@@ -113,6 +113,9 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install chromium
 
+      - name: Show target URL
+        run: echo "🏁 Ejecutando Playwright contra: $QA_URL"
+
       - name: Run Playwright tests
         env:
           BASE_URL: ${{ env.QA_URL }}
@@ -148,4 +151,89 @@ jobs:
         if: always()
         with:
           name: playwright-trace
-          path: artif
+          path: artifacts/trace.zip
+          retention-days: 30
+          if-no-files-found: warn
+
+      - name: Prepare and commit Playwright report history
+        if: always()
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          BRANCH: ${{ github.ref_name }}
+          SHORT_SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          echo "📥 Clonando gh-pages..."
+          git clone --depth 1 --branch gh-pages "https://x-access-token:${TOKEN}@github.com/${REPO}.git" gh-pages || mkdir gh-pages
+          cd gh-pages
+
+          # Crear carpeta única para el run
+          folder_name="run-${RUN_NUMBER}-${BRANCH}-$(echo ${SHORT_SHA} | cut -c1-7)"
+          mkdir -p "$folder_name"
+          cp -R ../playwright-report/* "$folder_name/"
+          echo "✅ Reporte copiado en carpeta $folder_name"
+
+          # Actualizar symlink 'latest'
+          rm -rf latest
+          cp -R "$folder_name" latest
+
+          # Mantener solo los últimos 20 runs
+          runs=( $(ls -td run-* 2>/dev/null || true) )
+          if [ ${#runs[@]} -gt 20 ]; then
+            echo "🧹 Limpiando runs antiguos..."
+            for dir in "${runs[@]:20}"; do
+              echo "  - Eliminando $dir"
+              rm -rf "$dir"
+            done
+          fi
+
+          # Regenerar index.html
+          echo "🪄 Actualizando índice..."
+          {
+            echo '<!DOCTYPE html>'
+            echo '<html lang="es"><head><meta charset="UTF-8" />'
+            echo '<title>Playwright Reports</title>'
+            echo '<style>body{font-family:sans-serif;margin:2rem}a{color:#0366d6}</style></head><body>'
+            echo '<h1>Historial de reportes Playwright</h1>'
+            echo '<p>Se conservan los últimos 20 reportes. Usa <code>latest/</code> para el más reciente.</p><ul>'
+            for d in $(ls -td run-* 2>/dev/null || true); do
+              echo "<li><a href=\"${d}/index.html\">${d}</a></li>"
+            done
+            echo '<li><a href="latest/index.html">latest</a></li>'
+            echo '</ul></body></html>'
+          } > index.html
+
+          echo "📤 Commit & push..."
+          git add .
+          git commit -m "📊 Add Playwright report $folder_name" || echo "No hay cambios para commitear."
+          git push origin gh-pages
+
+      - name: Notify Slack
+        if: always() && env.SLACK_WEBHOOK_URL != ''
+        env:
+          JOB_STATUS: ${{ job.status }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          BRANCH: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
+          ACTOR: ${{ github.actor }}
+          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+        run: |
+          payload=$(jq -n \
+            --arg status "$JOB_STATUS" \
+            --arg repo "$REPO" \
+            --arg branch "$BRANCH" \
+            --arg actor "$ACTOR" \
+            --arg url "$RUN_URL" \
+            --arg pages "$PAGES_URL" \
+            '{
+              text: "[Playwright] Estado: \($status)",
+              blocks: [
+                { type: "section", text: { type: "mrkdwn", text: "*Playwright CI \($status)*\nRepo: `\($repo)`\nBranch: `\($branch)`\nBy: `\($actor)`\n<\($url)|Ver ejecución>\n<\($pages)|Ver reportes>" } }
+              ]
+            }')
+          curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
