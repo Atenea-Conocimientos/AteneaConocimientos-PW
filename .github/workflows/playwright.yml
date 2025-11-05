@@ -20,12 +20,12 @@ on:
       - master
 
 permissions:
-  contents: read
+  contents: write
   pages: write
   id-token: write
 
 concurrency:
-  group: playwright-${{ github.workflow }}-${{ github.ref || github.event.client_payload.qa_url || github.run_id }}
+  group: playwright-${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -39,16 +39,14 @@ jobs:
       SOURCE_REPO: ${{ github.event.client_payload.source_repo || github.repository }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       STATUS_PAT: ${{ secrets.STATUS_PAT }}
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Set pending commit status
-        if: ${{ env.COMMIT_SHA != '' && env.STATUS_PAT != '' }}
+        if: env.COMMIT_SHA != '' && env.STATUS_PAT != ''
         env:
-          COMMIT_SHA: ${{ env.COMMIT_SHA }}
-          SOURCE_REPO: ${{ env.SOURCE_REPO }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          STATUS_PAT: ${{ env.STATUS_PAT }}
         run: |
           set -euo pipefail
           payload=$(jq -n \
@@ -69,7 +67,7 @@ jobs:
             -w "%{http_code}" \
             "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA")
           if [ "$status_code" != "201" ]; then
-            echo "Advertencia: no se pudo registrar el estado pendiente (HTTP $status_code)."
+            echo "⚠️ No se pudo registrar el estado pendiente (HTTP $status_code)."
             cat "$response_file"
           fi
           rm -f "$response_file"
@@ -79,15 +77,12 @@ jobs:
           node-version: "lts/*"
 
       - name: Wait for preview readiness
-        env:
-          QA_URL: ${{ env.QA_URL }}
         run: |
           set -euo pipefail
           if [ -z "${QA_URL}" ]; then
-            echo "QA_URL vacío"
+            echo "❌ QA_URL vacío"
             exit 1
           fi
-          # Derivar API_URL desde la URL del preview
           API_URL=$(echo "$QA_URL" | sed -E 's#(https?://)pr-([0-9]+)\.qa\.ateneaconocimientos\.com#\1api-pr-\2.qa.ateneaconocimientos.com#')/docs
 
           echo "Esperando FRONTEND: $QA_URL"
@@ -99,7 +94,7 @@ jobs:
             fi
             sleep 5
           done
-          echo "Frontend OK"
+          echo "✅ Frontend OK"
 
           echo "Esperando API: $API_URL"
           deadline=$((SECONDS+600))
@@ -110,7 +105,7 @@ jobs:
             fi
             sleep 5
           done
-          echo "API OK"
+          echo "✅ API OK"
 
       - name: Install dependencies
         run: npm ci
@@ -118,30 +113,32 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install chromium
 
-      - name: Print base URL
-        env:
-          QA_URL: ${{ env.QA_URL }}
-        run: |
-          echo "Playwright QA URL: ${QA_URL}"
-
       - name: Run Playwright tests
         env:
           BASE_URL: ${{ env.QA_URL }}
           PLAYWRIGHT_TEST_BASE_URL: ${{ env.QA_URL }}
         run: npx playwright test --project=chromium
 
+      - name: Debug Playwright report
+        if: always()
+        run: |
+          echo "📂 Revisando carpeta playwright-report..."
+          if [ -d playwright-report ]; then
+            ls -la playwright-report
+          else
+            echo "⚠️ playwright-report no existe."
+          fi
+
       - name: Package Playwright traces
-        if: ${{ always() }}
+        if: always()
         run: |
           mkdir -p artifacts
           trace_bundle="artifacts/trace.zip"
-
           if [ -d test-results ]; then
             mapfile -t traces < <(find test-results -type f -name "*trace.zip" -print 2>/dev/null)
           else
             traces=()
           fi
-
           if [ "${#traces[@]}" -gt 0 ]; then
             zip -j "$trace_bundle" "${traces[@]}"
           else
@@ -149,132 +146,114 @@ jobs:
             zip -j "$trace_bundle" artifacts/trace-info.txt
           fi
 
-      - uses: actions/upload-artifact@v4
-        if: ${{ always() }}
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 30
-          if-no-files-found: warn
+      - name: Prepare and commit Playwright report history
+        if: always()
+        env:
+          RUN_NUMBER: ${{ github.run_number }}
+          BRANCH: ${{ github.ref_name }}
+          SHORT_SHA: ${{ github.sha }}
+          TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Upload trace artifact
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-trace
-          path: artifacts/trace.zip
-          retention-days: 30
-          if-no-files-found: warn
+          echo "📥 Clonando gh-pages..."
+          git clone --depth 1 --branch gh-pages "https://x-access-token:${TOKEN}@github.com/${REPO}.git" gh-pages || mkdir gh-pages
+          cd gh-pages
 
-      - name: Setup Pages
-        if: ${{ always() && github.event_name == 'push' && !cancelled() }}
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+          safe_branch=$(echo "${BRANCH}" | tr -cd '[:alnum:]-_' | tr '/' '-')
+          timestamp=$(date -u +'%Y%m%d-%H%M%S')
+          folder_name="run-${RUN_NUMBER}-${safe_branch}-${timestamp}-$(echo ${SHORT_SHA} | cut -c1-7)"
+          mkdir -p "$folder_name"
+          if [ -d ../playwright-report ]; then
+            report_dir="../playwright-report"
+          elif [ -d playwright-report ]; then
+            report_dir="playwright-report"
+          else
+            echo "❌ No se encontró carpeta playwright-report."
+            echo "Contenido del directorio actual:"
+            ls -la
+            echo "Contenido del directorio padre:"
+            ls -la ..
+            exit 1
+          fi
 
-      - name: Upload Pages artifact
-        if: ${{ always() && github.event_name == 'push' && !cancelled() }}
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: playwright-report
+          if [ ! -d "$report_dir" ]; then
+            echo "❌ Directorio de reportes no accesible en $report_dir"
+            exit 1
+          fi
+
+          echo "📦 Copiando reporte desde $report_dir"
+          ls -la "$report_dir"
+          cp -R "$report_dir"/. "$folder_name"/
+          echo "✅ Reporte copiado en carpeta $folder_name"
+
+          rm -rf latest
+          cp -R "$folder_name" latest
+
+          runs=( $(ls -td run-* 2>/dev/null || true) )
+          if [ ${#runs[@]} -gt 20 ]; then
+            echo "🧹 Limpiando runs antiguos..."
+            for dir in "${runs[@]:20}"; do
+              echo "  - Eliminando $dir"
+              rm -rf "$dir"
+            done
+          fi
+
+          echo "🪄 Actualizando índice..."
+          {
+            echo '<!DOCTYPE html>'
+            echo '<html lang="es"><head><meta charset="UTF-8" />'
+            echo '<title>Playwright Reports</title>'
+            echo '<style>body{font-family:sans-serif;margin:2rem}a{color:#0366d6}</style></head><body>'
+            echo '<h1>Historial de reportes Playwright</h1>'
+            echo '<p>Se conservan los últimos 20 reportes. Usa <code>latest/</code> para el más reciente.</p><ul>'
+            for d in $(ls -td run-* 2>/dev/null || true); do
+              echo "<li><a href=\"${d}/index.html\">${d}</a></li>"
+            done
+            echo '<li><a href="latest/index.html">latest</a></li>'
+            echo '</ul></body></html>'
+          } > index.html
+
+          git add .
+          git commit -m "📊 Add Playwright report $folder_name" || echo "No hay cambios para commitear."
+          git push origin gh-pages
+
+          echo "$folder_name" > ../folder_name.txt
 
       - name: Notify Slack
-        if: ${{ always() && env.SLACK_WEBHOOK_URL != '' }}
+        if: always() && env.SLACK_WEBHOOK_URL != ''
         env:
           JOB_STATUS: ${{ job.status }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           BRANCH: ${{ github.ref_name }}
           REPO: ${{ github.repository }}
           ACTOR: ${{ github.actor }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          QA_URL: ${{ env.QA_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          set -euo pipefail
+          folder_name=$(cat folder_name.txt)
+          base_url="https://${GITHUB_REPOSITORY_OWNER}.github.io/${GITHUB_REPOSITORY#*/}"
+          report_url="${base_url}/${folder_name}/"
+          latest_url="${base_url}/latest/"
+
           payload=$(jq -n \
             --arg status "$JOB_STATUS" \
             --arg repo "$REPO" \
             --arg branch "$BRANCH" \
             --arg actor "$ACTOR" \
-            --arg url "$RUN_URL" \
-            --arg pages "$PAGES_URL" \
-            --arg target "$QA_URL" \
+            --arg runurl "$RUN_URL" \
+            --arg report "$report_url" \
+            --arg latest "$latest_url" \
             '{
               text: "[Playwright] Estado: \($status)",
               blocks: [
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Playwright CI \($status)*\nRepositorio: `\($repo)`\nRama: `\($branch)`\nDisparado por: `\($actor)`\nTarget URL: \($target)\n<\($url)|Ver ejecución en GitHub>\n<\($pages)|Ver reporte en GitHub Pages>"
-                  }
+                { type: "section",
+                  text: { type: "mrkdwn",
+                    text: "*Playwright CI \($status)*\nRepositorio: `\($repo)`\nRama: `\($branch)`\nDisparado por: `\($actor)`\n<\($runurl)|Ver ejecución>\n<\($report)|Ver reporte actual>\n<\($latest)|Ver el último reporte>" }
                 }
               ]
             }')
           curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
-
-      - name: Finalize commit status
-        if: ${{ always() && env.COMMIT_SHA != '' && env.STATUS_PAT != '' }}
-        env:
-          COMMIT_SHA: ${{ env.COMMIT_SHA }}
-          SOURCE_REPO: ${{ env.SOURCE_REPO }}
-          JOB_STATUS: ${{ job.status }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EVENT_NAME: ${{ github.event_name }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          STATUS_PAT: ${{ env.STATUS_PAT }}
-        run: |
-          if [ "$JOB_STATUS" = "success" ]; then
-            state="success"
-            description="Playwright tests passed"
-            if [ "$EVENT_NAME" = "push" ]; then
-              target_url="${PAGES_URL:-$RUN_URL}"
-            else
-              target_url="$RUN_URL"
-            fi
-          elif [ "$JOB_STATUS" = "cancelled" ]; then
-            state="failure"
-            description="Playwright tests cancelled"
-            target_url="$RUN_URL"
-          else
-            state="failure"
-            description="Playwright tests failed"
-            target_url="$RUN_URL"
-          fi
-
-          payload=$(jq -n \
-            --arg state "$state" \
-            --arg context "Playwright QA" \
-            --arg description "$description" \
-            --arg target_url "$target_url" \
-            '{
-              state: $state,
-              context: $context,
-              description: $description,
-              target_url: $target_url
-            }')
-
-          response_file=$(mktemp)
-          status_code=$(curl -sS -X POST \
-            -H "Authorization: Bearer $STATUS_PAT" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            --data "$payload" \
-            -o "$response_file" \
-            -w "%{http_code}" \
-            "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA")
-          if [ "$status_code" != "201" ]; then
-            echo "Advertencia: no se pudo actualizar el estado final (HTTP $status_code)."
-            cat "$response_file"
-          fi
-          rm -f "$response_file"
-
-  deploy:
-    if: ${{ github.event_name == 'push' }}
-    needs: test
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
