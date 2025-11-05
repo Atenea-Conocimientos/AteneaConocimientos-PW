@@ -25,7 +25,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: playwright-${{ github.workflow }}-${{ github.ref || github.event.client_payload.qa_url || github.run_id }}
+  group: playwright-${{ github.workflow }}-${{ github.ref || github.run_id }}
   cancel-in-progress: true
 
 jobs:
@@ -39,16 +39,14 @@ jobs:
       SOURCE_REPO: ${{ github.event.client_payload.source_repo || github.repository }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
       STATUS_PAT: ${{ secrets.STATUS_PAT }}
+
     steps:
       - uses: actions/checkout@v4
 
       - name: Set pending commit status
-        if: ${{ env.COMMIT_SHA != '' && env.STATUS_PAT != '' }}
+        if: env.COMMIT_SHA != '' && env.STATUS_PAT != ''
         env:
-          COMMIT_SHA: ${{ env.COMMIT_SHA }}
-          SOURCE_REPO: ${{ env.SOURCE_REPO }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          STATUS_PAT: ${{ env.STATUS_PAT }}
         run: |
           set -euo pipefail
           payload=$(jq -n \
@@ -69,7 +67,7 @@ jobs:
             -w "%{http_code}" \
             "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA")
           if [ "$status_code" != "201" ]; then
-            echo "Advertencia: no se pudo registrar el estado pendiente (HTTP $status_code)."
+            echo "⚠️ No se pudo registrar el estado pendiente (HTTP $status_code)."
             cat "$response_file"
           fi
           rm -f "$response_file"
@@ -79,15 +77,12 @@ jobs:
           node-version: "lts/*"
 
       - name: Wait for preview readiness
-        env:
-          QA_URL: ${{ env.QA_URL }}
         run: |
           set -euo pipefail
           if [ -z "${QA_URL}" ]; then
-            echo "QA_URL vacío"
+            echo "❌ QA_URL vacío"
             exit 1
           fi
-          # Derivar API_URL desde la URL del preview
           API_URL=$(echo "$QA_URL" | sed -E 's#(https?://)pr-([0-9]+)\.qa\.ateneaconocimientos\.com#\1api-pr-\2.qa.ateneaconocimientos.com#')/docs
 
           echo "Esperando FRONTEND: $QA_URL"
@@ -99,7 +94,7 @@ jobs:
             fi
             sleep 5
           done
-          echo "Frontend OK"
+          echo "✅ Frontend OK"
 
           echo "Esperando API: $API_URL"
           deadline=$((SECONDS+600))
@@ -110,7 +105,7 @@ jobs:
             fi
             sleep 5
           done
-          echo "API OK"
+          echo "✅ API OK"
 
       - name: Install dependencies
         run: npm ci
@@ -118,11 +113,8 @@ jobs:
       - name: Install Playwright Browsers
         run: npx playwright install chromium
 
-      - name: Print base URL
-        env:
-          QA_URL: ${{ env.QA_URL }}
-        run: |
-          echo "Playwright QA URL: ${QA_URL}"
+      - name: Show target URL
+        run: echo "🏁 Ejecutando Playwright contra: $QA_URL"
 
       - name: Run Playwright tests
         env:
@@ -131,17 +123,15 @@ jobs:
         run: npx playwright test --project=chromium
 
       - name: Package Playwright traces
-        if: ${{ always() }}
+        if: always()
         run: |
           mkdir -p artifacts
           trace_bundle="artifacts/trace.zip"
-
           if [ -d test-results ]; then
             mapfile -t traces < <(find test-results -type f -name "*trace.zip" -print 2>/dev/null)
           else
             traces=()
           fi
-
           if [ "${#traces[@]}" -gt 0 ]; then
             zip -j "$trace_bundle" "${traces[@]}"
           else
@@ -150,205 +140,15 @@ jobs:
           fi
 
       - uses: actions/upload-artifact@v4
-        if: ${{ always() }}
+        if: always()
         with:
           name: playwright-report
           path: playwright-report/
           retention-days: 30
           if-no-files-found: warn
 
-      - name: Upload trace artifact
-        if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: playwright-trace
-          path: artifacts/trace.zip
-          retention-days: 30
-          if-no-files-found: warn
-
-      - name: Download previous Pages reports
-        if: ${{ always() }}
-        env:
-          REPO: ${{ github.repository }}
-          TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          if git ls-remote --exit-code origin gh-pages > /dev/null 2>&1; then
-            git clone --depth 1 --branch gh-pages "https://x-access-token:${TOKEN}@github.com/${REPO}.git" pages-existing
-          else
-            echo "No existe gh-pages aún; se creará con el primer deploy."
-          fi
-
-      - name: Prepare Pages content
-        if: ${{ always() }}
-        env:
-          RUN_NUMBER: ${{ github.run_number }}
-          RUN_ATTEMPT: ${{ github.run_attempt }}
-        run: |
-          set -euo pipefail
-          rm -rf pages-build
-          mkdir -p pages-build
-          run_dir=$(printf "run-%06d-attempt-%02d" "${RUN_NUMBER}" "${RUN_ATTEMPT}")
-          dest="pages-build/${run_dir}"
-          cp -R playwright-report "${dest}"
-
-          if [ -d pages-existing ]; then
-            mapfile -t existing_runs < <(find pages-existing -maxdepth 1 -mindepth 1 -type d -name 'run-*' | sort -r)
-            kept=0
-            for dir in "${existing_runs[@]}"; do
-              if [ $kept -ge 19 ]; then
-                break
-              fi
-              name=$(basename "$dir")
-              cp -R "$dir" "pages-build/$name"
-              kept=$((kept+1))
-            done
-          fi
-
-          rm -rf pages-build/latest
-          cp -R "$dest" pages-build/latest
-
-          mapfile -t run_dirs < <(find pages-build -maxdepth 1 -mindepth 1 -type d -name 'run-*' | sort -r)
-          cat <<'HTML' > pages-build/index.html
-<!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <title>Playwright Reports</title>
-  <style>
-    body { font-family: sans-serif; margin: 2rem; }
-    h1 { margin-bottom: 0.5rem; }
-    ul { list-style: none; padding: 0; }
-    li { margin: 0.5rem 0; }
-    a { text-decoration: none; color: #0366d6; }
-    a:hover { text-decoration: underline; }
-  </style>
-</head>
-<body>
-  <h1>Historial de reportes Playwright</h1>
-  <p>Se conservan los últimos 20 reportes. Usa <code>latest/</code> para el más reciente.</p>
-  <ul>
-HTML
-          for dir in "${run_dirs[@]}"; do
-            name=$(basename "$dir")
-            printf '    <li><a href="%s/index.html">%s</a></li>\n' "$name" "$name" >> pages-build/index.html
-          done
-          cat <<'HTML' >> pages-build/index.html
-    <li><a href="latest/index.html">latest</a></li>
-  </ul>
-</body>
-</html>
-HTML
-
-      - name: Setup Pages
-        if: ${{ always() && !cancelled() }}
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
-
-      - name: Upload Pages artifact
-        if: ${{ always() && !cancelled() }}
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: pages-build
-
-      - name: Notify Slack
-        if: ${{ always() && env.SLACK_WEBHOOK_URL != '' }}
-        env:
-          JOB_STATUS: ${{ job.status }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BRANCH: ${{ github.ref_name }}
-          REPO: ${{ github.repository }}
-          ACTOR: ${{ github.actor }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          QA_URL: ${{ env.QA_URL }}
-        run: |
-          payload=$(jq -n \
-            --arg status "$JOB_STATUS" \
-            --arg repo "$REPO" \
-            --arg branch "$BRANCH" \
-            --arg actor "$ACTOR" \
-            --arg url "$RUN_URL" \
-            --arg pages "$PAGES_URL" \
-            --arg target "$QA_URL" \
-            '{
-              text: "[Playwright] Estado: \($status)",
-              blocks: [
-                {
-                  type: "section",
-                  text: {
-                    type: "mrkdwn",
-                    text: "*Playwright CI \($status)*\nRepositorio: `\($repo)`\nRama: `\($branch)`\nDisparado por: `\($actor)`\nTarget URL: \($target)\n<\($url)|Ver ejecución en GitHub>\n<\($pages)|Ver reporte en GitHub Pages>"
-                  }
-                }
-              ]
-            }')
-          curl -X POST -H 'Content-type: application/json' --data "$payload" "$SLACK_WEBHOOK_URL"
-
-      - name: Finalize commit status
-        if: ${{ always() && env.COMMIT_SHA != '' && env.STATUS_PAT != '' }}
-        env:
-          COMMIT_SHA: ${{ env.COMMIT_SHA }}
-          SOURCE_REPO: ${{ env.SOURCE_REPO }}
-          JOB_STATUS: ${{ job.status }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          EVENT_NAME: ${{ github.event_name }}
-          PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-          STATUS_PAT: ${{ env.STATUS_PAT }}
-        run: |
-          if [ "$JOB_STATUS" = "success" ]; then
-            state="success"
-            description="Playwright tests passed"
-            if [ "$EVENT_NAME" = "push" ]; then
-              target_url="${PAGES_URL:-$RUN_URL}"
-            else
-              target_url="$RUN_URL"
-            fi
-          elif [ "$JOB_STATUS" = "cancelled" ]; then
-            state="failure"
-            description="Playwright tests cancelled"
-            target_url="$RUN_URL"
-          else
-            state="failure"
-            description="Playwright tests failed"
-            target_url="$RUN_URL"
-          fi
-
-          payload=$(jq -n \
-            --arg state "$state" \
-            --arg context "Playwright QA" \
-            --arg description "$description" \
-            --arg target_url "$target_url" \
-            '{
-              state: $state,
-              context: $context,
-              description: $description,
-              target_url: $target_url
-            }')
-
-          response_file=$(mktemp)
-          status_code=$(curl -sS -X POST \
-            -H "Authorization: Bearer $STATUS_PAT" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/json" \
-            --data "$payload" \
-            -o "$response_file" \
-            -w "%{http_code}" \
-            "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA")
-          if [ "$status_code" != "201" ]; then
-            echo "Advertencia: no se pudo actualizar el estado final (HTTP $status_code)."
-            cat "$response_file"
-          fi
-          rm -f "$response_file"
-
-  deploy:
-    if: ${{ always() && needs.test.result != 'cancelled' }}
-    needs: test
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          path: artif
