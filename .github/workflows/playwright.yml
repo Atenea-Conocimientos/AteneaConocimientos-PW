@@ -50,6 +50,7 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           STATUS_PAT: ${{ env.STATUS_PAT }}
         run: |
+          set -euo pipefail
           payload=$(jq -n \
             --arg url "$RUN_URL" \
             '{
@@ -58,17 +59,58 @@ jobs:
               description: "Playwright tests running",
               target_url: $url
             }')
-          curl --fail-with-body \
-            -X POST \
+          response_file=$(mktemp)
+          status_code=$(curl -sS -X POST \
             -H "Authorization: Bearer $STATUS_PAT" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
             --data "$payload" \
-            "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA"
+            -o "$response_file" \
+            -w "%{http_code}" \
+            "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA")
+          if [ "$status_code" != "201" ]; then
+            echo "Advertencia: no se pudo registrar el estado pendiente (HTTP $status_code)."
+            cat "$response_file"
+          fi
+          rm -f "$response_file"
 
       - uses: actions/setup-node@v4
         with:
           node-version: "lts/*"
+
+      - name: Wait for preview readiness
+        env:
+          QA_URL: ${{ env.QA_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${QA_URL}" ]; then
+            echo "QA_URL vacío"
+            exit 1
+          fi
+          # Derivar API_URL desde la URL del preview
+          API_URL=$(echo "$QA_URL" | sed -E 's#(https?://)pr-([0-9]+)\.qa\.ateneaconocimientos\.com#\1api-pr-\2.qa.ateneaconocimientos.com#')/docs
+
+          echo "Esperando FRONTEND: $QA_URL"
+          deadline=$((SECONDS+600))
+          until curl -fsS -L -o /dev/null "$QA_URL"; do
+            if [ $SECONDS -ge $deadline ]; then
+              echo "Timeout esperando frontend ($QA_URL)"
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "Frontend OK"
+
+          echo "Esperando API: $API_URL"
+          deadline=$((SECONDS+600))
+          until curl -fsS -L -o /dev/null "$API_URL"; do
+            if [ $SECONDS -ge $deadline ]; then
+              echo "Timeout esperando API ($API_URL)"
+              exit 1
+            fi
+            sleep 5
+          done
+          echo "API OK"
 
       - name: Install dependencies
         run: npm ci
@@ -85,12 +127,19 @@ jobs:
         if: ${{ always() }}
         run: |
           mkdir -p artifacts
-          mapfile -t traces < <(find playwright-report -type f -name "*trace.zip" || true)
+          trace_bundle="artifacts/trace.zip"
+
+          if [ -d test-results ]; then
+            mapfile -t traces < <(find test-results -type f -name "*trace.zip" -print 2>/dev/null)
+          else
+            traces=()
+          fi
+
           if [ "${#traces[@]}" -gt 0 ]; then
-            zip -j artifacts/trace.zip "${traces[@]}"
+            zip -j "$trace_bundle" "${traces[@]}"
           else
             echo "No trace files generated." > artifacts/trace-info.txt
-            zip -j artifacts/trace.zip artifacts/trace-info.txt
+            zip -j "$trace_bundle" artifacts/trace-info.txt
           fi
 
       - uses: actions/upload-artifact@v4
@@ -111,13 +160,13 @@ jobs:
           if-no-files-found: warn
 
       - name: Setup Pages
-        if: ${{ github.event_name == 'push' && !cancelled() }}
+        if: ${{ always() && github.event_name == 'push' && !cancelled() }}
         uses: actions/configure-pages@v5
         with:
           enablement: true
 
       - name: Upload Pages artifact
-        if: ${{ github.event_name == 'push' && !cancelled() }}
+        if: ${{ always() && github.event_name == 'push' && !cancelled() }}
         uses: actions/upload-pages-artifact@v3
         with:
           path: playwright-report
@@ -196,13 +245,20 @@ jobs:
               target_url: $target_url
             }')
 
-          curl --fail-with-body \
-            -X POST \
+          response_file=$(mktemp)
+          status_code=$(curl -sS -X POST \
             -H "Authorization: Bearer $STATUS_PAT" \
             -H "Accept: application/vnd.github+json" \
             -H "Content-Type: application/json" \
             --data "$payload" \
-            "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA"
+            -o "$response_file" \
+            -w "%{http_code}" \
+            "https://api.github.com/repos/$SOURCE_REPO/statuses/$COMMIT_SHA")
+          if [ "$status_code" != "201" ]; then
+            echo "Advertencia: no se pudo actualizar el estado final (HTTP $status_code)."
+            cat "$response_file"
+          fi
+          rm -f "$response_file"
 
   deploy:
     if: ${{ github.event_name == 'push' }}
