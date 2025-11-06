@@ -1,9 +1,8 @@
-import {Locator, Page} from '@playwright/test';
+import { Locator, Page } from '@playwright/test';
 
 export class PaginaHome {
     readonly page: Page;
     readonly botonCrearCuenta: Locator;
-    readonly urlHome = process.env.BASE_URL;
 
     constructor(page: Page) {
         this.page = page;
@@ -11,10 +10,10 @@ export class PaginaHome {
     }
 
     async navegarAHome() {
-        await this.page.goto(this.urlHome!);
+        await this.page.goto('/');
     }
-    
+
     async navegarARegistro() {
         await this.botonCrearCuenta.click();
     }
-};
+}
