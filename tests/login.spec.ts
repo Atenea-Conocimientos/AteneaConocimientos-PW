@@ -13,7 +13,6 @@ test.beforeEach(({ page }) => {
     paginaLogin = new PaginaLogin(page);
 });
 
-
 test('TC-1: Login Exitoso', { tag: '@smoke' }, async ({ page }) => {
     const email = `estudiante${Date.now()}@automation.com`;
     await helpers.crearNuevoEstudiantePorApi('Juan', 'Pérez', email, 'Password123');
@@ -22,5 +21,3 @@ test('TC-1: Login Exitoso', { tag: '@smoke' }, async ({ page }) => {
     await helpers.esperarPorRespuestaAPI('/api/students/login', 'POST', 200);
     await expect(page).toHaveURL('dashboard');
 });
-
-

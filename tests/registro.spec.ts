@@ -16,7 +16,6 @@ test.beforeEach(({ page }) => {
     helpers = new Helpers(page);
 });
 
-
 test('TC-3: Registro de estudiante (Sign up)', { tag: '@smoke' }, async () => {
     const email = `estudiante${Date.now()}@automation.com`;
     await paginaHome.navegarAHome();

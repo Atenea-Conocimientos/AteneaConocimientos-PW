@@ -4,7 +4,7 @@ export class PaginaHeader {
     readonly page: Page;
     readonly logoAtenea: Locator;
     readonly misTalleresTab: Locator;
-    readonly desafiosTab: Locator
+    readonly desafiosTab: Locator;
     readonly misCertificadosTab: Locator;
     readonly topAteniensesTab: Locator;
     readonly ticketsComunidadTab: Locator;
@@ -19,7 +19,7 @@ export class PaginaHeader {
         this.page = page;
         this.logoAtenea = page.getByRole('img', { name: 'Atenea Logo' });
         this.misTalleresTab = page.getByRole('link', { name: 'Mis Talleres' });
-        this.desafiosTab = page.getByRole('link', { name: 'Desafíos' })
+        this.desafiosTab = page.getByRole('link', { name: 'Desafíos' });
         this.misCertificadosTab = page.getByRole('link', { name: 'Mis Certificados' });
         this.topAteniensesTab = page.getByRole('link', { name: 'Top Atenienses' });
         this.ticketsComunidadTab = page.getByRole('link', { name: 'Tickets Comunidad' });
@@ -30,5 +30,4 @@ export class PaginaHeader {
         this.botonNotificaciones = page.getByRole('button', { name: 'Notificaciones' });
         this.botonPerfilUsuario = page.getByRole('button', { name: 'Perfil de Usuario' });
     }
-
 }

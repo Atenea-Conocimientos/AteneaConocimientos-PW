@@ -39,7 +39,12 @@ export class Helpers {
     }
 
     //Crear un nuevo estudiante mediante la API y verificar la respuesta
-    async crearNuevoEstudiantePorApi(nombre: string, apellido: string, email: string, password: string) {
+    async crearNuevoEstudiantePorApi(
+        nombre: string,
+        apellido: string,
+        email: string,
+        password: string,
+    ) {
         const payload = {
             name: nombre,
             lastname: apellido, // <- minúsculas
@@ -53,7 +58,9 @@ export class Helpers {
         const status = response.status();
         if (status !== 201) {
             const body = await response.text();
-            throw new Error(`Fallo al registrar estudiante. status=${status}. respuesta=${body}. payload=${JSON.stringify({ ...payload, password: '***' })}`);
+            throw new Error(
+                `Fallo al registrar estudiante. status=${status}. respuesta=${body}. payload=${JSON.stringify({ ...payload, password: '***' })}`,
+            );
         }
     }
 }

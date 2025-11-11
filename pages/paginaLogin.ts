@@ -3,7 +3,7 @@ import { Locator, Page } from '@playwright/test';
 export class PaginaLogin {
     readonly page: Page;
     readonly inputEmail: Locator;
-    readonly inputPassword: Locator
+    readonly inputPassword: Locator;
     readonly bottonIniciarSesion: Locator;
     readonly linkOlvideMiPassword: Locator;
     readonly linkRegistrarse: Locator;
