@@ -21,11 +21,19 @@ export class PaginaLogin {
 
     async navegarALogin() {
         await this.page.goto('/login');
+        await this.page.waitForLoadState('load');
+        // Wait for the email input to be ready (avoids networkidle which hangs with tsparticles/WS)
+        await this.inputEmail.waitFor({ state: 'visible', timeout: 15000 });
     }
 
     async iniciarSesion(email: string, password: string) {
+        // Do NOT use networkidle — tsparticles keeps the network active indefinitely
+        await this.inputEmail.waitFor({ state: 'visible', timeout: 15000 });
         await this.inputEmail.fill(email);
+        // Brief pause for React to re-render after email fill
+        await this.page.waitForTimeout(400);
+        await this.inputPassword.waitFor({ state: 'visible', timeout: 10000 });
         await this.inputPassword.fill(password);
-        await this.botonIniciarSesion.click();
+        await this.botonIniciarSesion.click({ force: true });
     }
 }

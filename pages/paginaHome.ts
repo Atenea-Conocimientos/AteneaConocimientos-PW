@@ -11,9 +11,10 @@ export class PaginaHome {
 
     async navegarAHome() {
         await this.page.goto('/');
+        await this.page.waitForLoadState('networkidle');
     }
 
     async navegarARegistro() {
-        await this.botonCrearCuenta.click();
+        await this.botonCrearCuenta.click({ force: true });
     }
 }

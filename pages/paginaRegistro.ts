@@ -59,7 +59,7 @@ export class PaginaRegistro {
     }
 
     async clickBotonRegistrarse() {
-        await this.botonRegistrarse.click();
+        await this.botonRegistrarse.click({ force: true });
     }
 
     async clickLinkYaTengoCuenta() {
@@ -67,7 +67,7 @@ export class PaginaRegistro {
     }
 
     async checkTerminos() {
-        await this.checkboxTerminos.check();
+        await this.checkboxTerminos.check({ force: true });
     }
 
     async clickLinkTerminos() {
